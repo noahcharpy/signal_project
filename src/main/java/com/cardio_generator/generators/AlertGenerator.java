@@ -4,15 +4,33 @@ import java.util.Random;
 
 import com.cardio_generator.outputs.OutputStrategy;
 
+/**
+ * Simulates alerts being triggered or resolved for each patient.
+ * Uses random values to decide when something "goes wrong" or gets fixed.
+ */
 public class AlertGenerator implements PatientDataGenerator {
 
     public static final Random randomGenerator = new Random();
     private boolean[] AlertStates; // false = resolved, true = pressed
 
+    /**
+     * Creates an alert tracker for each patient.
+     * All alerts are set to resolved (false) at the start.
+     *
+     * @param patientCount total number of patients
+     */
     public AlertGenerator(int patientCount) {
         AlertStates = new boolean[patientCount + 1];
     }
 
+    /**
+     * Generates either a new alert or a resolution for the given patient.
+     * If an alert is active, there's a chance it gets resolved.
+     * Otherwise, there's a small chance a new alert gets triggered.
+     *
+     * @param patientId      the ID of the patient
+     * @param outputStrategy how the alert is sent (console, file, etc.)
+     */
     @Override
     public void generate(int patientId, OutputStrategy outputStrategy) {
         try {

@@ -4,35 +4,31 @@ import com.data_management.DataStorage;
 import com.data_management.Patient;
 
 /**
- * The {@code AlertGenerator} class is responsible for monitoring patient data
- * and generating alerts when certain predefined conditions are met. This class
- * relies on a {@link DataStorage} instance to access patient data and evaluate
- * it against specific health criteria.
+ * This class checks patient data and decides whether an alert should be triggered.
+ * It uses the DataStorage object to access all the patient records.
  */
 public class AlertGenerator {
+
+    /**
+     * Used to access patient data for checking alert conditions.
+     */
     private final DataStorage dataStorage; // Added final to dataStorage to follow Google Style
 
     /**
-     * Constructs an {@code AlertGenerator} with a specified {@code DataStorage}.
-     * The {@code DataStorage} is used to retrieve patient data that this class
-     * will monitor and evaluate.
+     * Creates a new alert generator that uses the given data storage.
      *
-     * @param dataStorage the data storage system that provides access to patient
-     *                    data
+     * @param dataStorage the system that holds patient information
      */
     public AlertGenerator(DataStorage dataStorage) {
         this.dataStorage = dataStorage;
     }
 
     /**
-     * Evaluates the specified patient's data to determine if any alert conditions
-     * are met. If a condition is met, an alert is triggered via the
-     * {@link #triggerAlert}
-     * method. This method should define the specific conditions under which an
-     * alert
-     * will be triggered.
+     * Goes through the records of one patient and checks if any values
+     * should trigger an alert (like something being too high or too low).
+     * The actual logic still needs to be implemented.
      *
-     * @param patient the patient data to evaluate for alert conditions
+     * @param patient the patient whose data should be evaluated
      */
     public void evaluateData(Patient patient) {
         // Replaced placeholder with proper comment to follow style guide
@@ -40,14 +36,12 @@ public class AlertGenerator {
     }
 
     /**
-     * Triggers an alert for the monitoring system. This method can be extended to
-     * notify medical staff, log the alert, or perform other actions. The method
-     * currently assumes that the alert information is fully formed when passed as
-     * an argument.
+     * Triggers an alert based on the data. This method can be used
+     * to notify someone or just log the problem. For now, it's just a placeholder.
      *
-     * @param alert the alert object containing details about the alert condition
+     * @param alert the alert that should be sent or handled
      */
     private void triggerAlert(Alert alert) {
-        // Implementation might involve logging the alert or notifying staff
+        // Can be used later to notify medical staff or write to a log
     }
 }
