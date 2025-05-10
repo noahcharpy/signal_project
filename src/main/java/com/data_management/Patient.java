@@ -52,6 +52,14 @@ public class Patient {
      *         range
      */
     public List<PatientRecord> getRecords(long startTime, long endTime) {
-        // TODO Implement and test this method
+       // TO DO (but modified to run mvn clean package
+        List<PatientRecord> filteredRecords = new ArrayList<>();
+        for (PatientRecord record : patientRecords) {
+            long time = record.getTimestamp();
+            if (time >= startTime && time <= endTime) {
+                filteredRecords.add(record);
+            }
+        }
+        return filteredRecords;
     }
 }
