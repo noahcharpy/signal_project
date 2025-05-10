@@ -10,7 +10,7 @@ import com.data_management.Patient;
  * it against specific health criteria.
  */
 public class AlertGenerator {
-    private DataStorage dataStorage;
+    private final DataStorage dataStorage; // Added final to dataStorage to follow Google Style
 
     /**
      * Constructs an {@code AlertGenerator} with a specified {@code DataStorage}.
@@ -35,7 +35,8 @@ public class AlertGenerator {
      * @param patient the patient data to evaluate for alert conditions
      */
     public void evaluateData(Patient patient) {
-        // Implementation goes here
+        // Replaced placeholder with proper comment to follow style guide
+        // This method should be implemented based on alert criteria
     }
 
     /**
