@@ -25,6 +25,15 @@ public class Patient {
     }
 
     /**
+     * Returns the unique identifier of the patient.
+     *
+     * @return the patient ID
+     */
+    public int getPatientId() {
+        return patientId;
+    }
+
+    /**
      * Adds a new record to this patient's list of medical records.
      * The record is created with the specified measurement value, record type, and
      * timestamp.
@@ -35,7 +44,7 @@ public class Patient {
      * @param timestamp        the time at which the measurement was taken, in
      *                         milliseconds since UNIX epoch
      */
-    public void addRecord(double measurementValue, String recordType, long timestamp) {
+    public void addRecord(String measurementValue, String recordType, long timestamp) {
         PatientRecord record = new PatientRecord(this.patientId, measurementValue, recordType, timestamp);
         this.patientRecords.add(record);
     }
