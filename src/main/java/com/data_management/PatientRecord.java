@@ -12,7 +12,7 @@ package com.data_management;
 public class PatientRecord {
     private int patientId;
     private String recordType; // Example: ECG, blood pressure, etc.
-    private double measurementValue; // Example: heart rate
+    private String measurementValue; // Changed from double to String to support complex formats like "120/80"
     private long timestamp;
 
     /**
@@ -25,7 +25,7 @@ public class PatientRecord {
      * @param timestamp        the time at which the measurement was recorded, in
      *                         milliseconds since epoch
      */
-    public PatientRecord(int patientId, double measurementValue, String recordType, long timestamp) {
+    public PatientRecord(int patientId, String measurementValue, String recordType, long timestamp) {
         this.patientId = patientId;
         this.measurementValue = measurementValue;
         this.recordType = recordType;
@@ -46,7 +46,7 @@ public class PatientRecord {
      * 
      * @return the measurement value
      */
-    public double getMeasurementValue() {
+    public String getMeasurementValue() {
         return measurementValue;
     }
 
