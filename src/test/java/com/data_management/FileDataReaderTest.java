@@ -8,11 +8,18 @@ import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * Unit tests for the FileDataReader class which reads patient data from text files.
+ * It validates both successful reads and handling of corrupted input.
+ */
 class FileDataReaderTest {
 
+    /**
+     * Tests whether valid data from a file is read correctly into DataStorage.
+     */
     @Test
     void testReadValidFile() throws IOException {
-        // Create temporary output directory and file
+        // Arrange: Setup a mock data directory and file
         String dir = "test-output";
         Path path = Path.of(dir, "Saturation.txt");
         path.toFile().getParentFile().mkdirs();
@@ -21,34 +28,38 @@ class FileDataReaderTest {
             out.println("Patient ID: 1, Timestamp: 1714376789051, Label: Saturation, Data: 97%");
         }
 
-        DataStorage storage = new DataStorage();
+        // Act: Use the reader to load data into the singleton DataStorage
+        DataStorage storage = DataStorage.getInstance(); // Singleton version
+        storage.clear();  // Ensure no leftover data from other tests
         FileDataReader reader = new FileDataReader(dir);
         reader.readData(storage);
 
-        assertFalse(storage.getAllPatients().isEmpty());
+        // Assert: The data should now exist in the singleton
+        assertFalse(storage.getAllPatients().isEmpty(), "Expected non-empty storage after reading valid file");
     }
 
+    /**
+     * Tests the behavior when reading a corrupted line.
+     * Ensures the system handles bad input gracefully without crashing.
+     */
     @Test
     void testReadCorruptedLine() throws IOException {
-        // Use a unique directory to isolate from other tests
+        // Arrange: Create a separate directory and invalid data file
         String dir = "test-output-corrupted";
         Path path = Path.of(dir, "Corrupted.txt");
         path.toFile().getParentFile().mkdirs();
 
-        // Write a line that will trigger a parsing error
         try (PrintWriter out = new PrintWriter(new FileWriter(path.toFile()))) {
             out.println("Invalid Line");
         }
 
-        // Read the file
-        DataStorage storage = new DataStorage();
+        // Act: Attempt to read the corrupted file
+        DataStorage storage = DataStorage.getInstance(); // Singleton version
+        storage.clear();  // Ensure clean state
         FileDataReader reader = new FileDataReader(dir);
         reader.readData(storage);
 
-        // Print for debugging if needed
-        System.out.println("Patients in storage: " + storage.getAllPatients().size());
-
-        // Assert nothing was added
-        assertEquals(0, storage.getAllPatients().size());
+        // Assert: Corrupted line should not result in any patient being stored
+        assertEquals(0, storage.getAllPatients().size(), "Expected no patients to be stored after reading corrupted line");
     }
 }
