@@ -1,190 +1,145 @@
 package com.cardio_generator;
 
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import com.alerts.*;
+import com.alerts.factories.*;
+import com.alerts.strategies.*;
+import com.cardio_generator.generators.*;
+import com.cardio_generator.outputs.*;
+import com.data_management.DataStorage;
+import com.data_management.Patient;
 
-import com.cardio_generator.generators.AlertGenerator;
-
-import com.cardio_generator.generators.BloodPressureDataGenerator;
-import com.cardio_generator.generators.BloodSaturationDataGenerator;
-import com.cardio_generator.generators.BloodLevelsDataGenerator;
-import com.cardio_generator.generators.ECGDataGenerator;
-import com.cardio_generator.outputs.ConsoleOutputStrategy;
-import com.cardio_generator.outputs.FileOutputStrategy;
-import com.cardio_generator.outputs.OutputStrategy;
-import com.cardio_generator.outputs.TcpOutputStrategy;
-import com.cardio_generator.outputs.WebSocketOutputStrategy;
-
-import java.util.Collections;
-import java.util.List;
-import java.util.Random;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.ArrayList;
+import java.nio.file.*;
+import java.util.*;
+import java.util.concurrent.*;
 
 /**
- * This is the main class for simulating health data.
- * It generates data for a certain number of patients and sends it to an output,
- * like the console, a file, or a network socket.
+ * Singleton class that manages the full lifecycle of health data simulation.
  */
 public class HealthDataSimulator {
 
-    private static int patientCount = 50; // Default number of patients to simulate
-    private static ScheduledExecutorService scheduler; // Used to run repeating tasks like generating ECG, blood pressure, etc.
-    private static OutputStrategy outputStrategy = new ConsoleOutputStrategy(); // Default output strategy
-    private static final Random random = new Random();
+    /** Singleton instance of the simulator. */
+    private static final HealthDataSimulator INSTANCE = new HealthDataSimulator();
+
+    /** Default number of patients. */
+    private int patientCount = 50;
+
+    private OutputStrategy outputStrategy = new ConsoleOutputStrategy();
+    private ScheduledExecutorService scheduler;
+    private final Random random = new Random();
 
     /**
-     * Starts the simulator: reads the settings, creates patients,
-     * and sets up all the repeating data generators.
-     * @param args the command-line arguments passed by the user
-     * @throws IOException if file output directory can't be created
+     * Private constructor to prevent external instantiation.
      */
-    public static void main(String[] args) throws IOException {
+    private HealthDataSimulator() {}
 
-        parseArguments(args);
-
-        scheduler = Executors.newScheduledThreadPool(patientCount * 4);
-
-        List<Integer> patientIds = initializePatientIds(patientCount);
-        Collections.shuffle(patientIds); // Randomize the order of patient IDs
-
-        scheduleTasksForPatients(patientIds);
+    /**
+     * Returns the singleton instance.
+     */
+    public static HealthDataSimulator getInstance() {
+        return INSTANCE;
     }
 
     /**
-     * Checks the command-line arguments and applies the settings.
-     * You can choose how many patients and what type of output.
-     * @param args the command-line arguments
-     * @throws IOException if a file output path has to be created and fails
+     * Starts the simulation system with command-line arguments.
      */
-    private static void parseArguments(String[] args) throws IOException {
+    public void start(String[] args) throws IOException {
+        parseArguments(args);
+        scheduler = Executors.newScheduledThreadPool(patientCount * 4);
+
+        List<Integer> patientIds = initializePatientIds(patientCount);
+        Collections.shuffle(patientIds);
+
+        DataStorage storage = DataStorage.getInstance();
+        AlertFactory factory = new DefaultAlertFactory();
+        AlertTrigger trigger = new ConsoleAlertTrigger();
+
+        Map<String, AlertStrategy> strategies = new HashMap<>();
+        strategies.put("BloodPressure", new BloodPressureStrategy());
+        strategies.put("Saturation", new OxygenSaturationStrategy());
+        strategies.put("ECG", new ECGStrategy());
+        strategies.put("HeartRate", new HeartRateStrategy());
+
+        AlertService alertService = new AlertService(factory, strategies, trigger);
+
+        scheduleTasksForPatients(patientIds, storage, alertService);
+    }
+
+    /**
+     * Parses CLI arguments like patient count or output target.
+     */
+    private void parseArguments(String[] args) throws IOException {
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
-                case "-h":
-                    printHelp();
-                    System.exit(0);
-                    break;
                 case "--patient-count":
                     if (i + 1 < args.length) {
                         try {
                             patientCount = Integer.parseInt(args[++i]);
                         } catch (NumberFormatException e) {
-                            System.err
-                                    .println("Error: Invalid number of patients. Using default value: " + patientCount);
+                            System.err.println("Invalid count. Using default: " + patientCount);
                         }
                     }
                     break;
                 case "--output":
                     if (i + 1 < args.length) {
-                        String outputArg = args[++i];
-                        if (outputArg.equals("console")) {
+                        String output = args[++i];
+                        if (output.equals("console")) {
                             outputStrategy = new ConsoleOutputStrategy();
-                        } else if (outputArg.startsWith("file:")) {
-                            String baseDirectory = outputArg.substring(5);
-                            Path outputPath = Paths.get(baseDirectory);
-                            if (!Files.exists(outputPath)) {
-                                Files.createDirectories(outputPath);
-                            }
-                            outputStrategy = new FileOutputStrategy(baseDirectory);
-                        } else if (outputArg.startsWith("websocket:")) {
-                            try {
-                                int port = Integer.parseInt(outputArg.substring(10));
-                                // Initialize your WebSocket output strategy here
-                                outputStrategy = new WebSocketOutputStrategy(port);
-                                System.out.println("WebSocket output will be on port: " + port);
-                            } catch (NumberFormatException e) {
-                                System.err.println(
-                                        "Invalid port for WebSocket output. Please specify a valid port number.");
-                            }
-                        } else if (outputArg.startsWith("tcp:")) {
-                            try {
-                                int port = Integer.parseInt(outputArg.substring(4));
-                                // Initialize your TCP socket output strategy here
-                                outputStrategy = new TcpOutputStrategy(port);
-                                System.out.println("TCP socket output will be on port: " + port);
-                            } catch (NumberFormatException e) {
-                                System.err.println("Invalid port for TCP output. Please specify a valid port number.");
-                            }
-                        } else {
-                            System.err.println("Unknown output type. Using default (console).");
+                        } else if (output.startsWith("file:")) {
+                            Path path = Paths.get(output.substring(5));
+                            if (!Files.exists(path)) Files.createDirectories(path);
+                            outputStrategy = new FileOutputStrategy(path.toString());
+                        } else if (output.startsWith("websocket:")) {
+                            outputStrategy = new WebSocketOutputStrategy(Integer.parseInt(output.substring(10)));
+                        } else if (output.startsWith("tcp:")) {
+                            outputStrategy = new TcpOutputStrategy(Integer.parseInt(output.substring(4)));
                         }
                     }
                     break;
                 default:
-                    System.err.println("Unknown option '" + args[i] + "'");
-                    printHelp();
-                    System.exit(1);
+                    System.err.println("Unknown argument: " + args[i]);
             }
         }
     }
 
     /**
-     * Shows how to use the program if the user asks for help or gives bad input.
+     * Creates a list of patient IDs from 1 to count.
      */
-    private static void printHelp() {
-        System.out.println("Usage: java HealthDataSimulator [options]");
-        System.out.println("Options:");
-        System.out.println("  -h                       Show help and exit.");
-        System.out.println(
-                "  --patient-count <count>  Specify the number of patients to simulate data for (default: 50).");
-        System.out.println("  --output <type>          Define the output method. Options are:");
-        System.out.println("                             'console' for console output,");
-        System.out.println("                             'file:<directory>' for file output,");
-        System.out.println("                             'websocket:<port>' for WebSocket output,");
-        System.out.println("                             'tcp:<port>' for TCP socket output.");
-        System.out.println("Example:");
-        System.out.println("  java HealthDataSimulator --patient-count 100 --output websocket:8080");
-        System.out.println(
-                "  This command simulates data for 100 patients and sends the output to WebSocket clients connected to port 8080.");
-    }
-
-
-    /**
-     * Just creates a list like [1, 2, 3, ..., patientCount].
-     * @param patientCount the total number of patients to simulate
-     * @return a list of patient IDs from 1 to patientCount
-     */
-    private static List<Integer> initializePatientIds(int patientCount) {
-        List<Integer> patientIds = new ArrayList<>();
-        for (int i = 1; i <= patientCount; i++) {
-            patientIds.add(i);
+    private List<Integer> initializePatientIds(int count) {
+        List<Integer> ids = new ArrayList<>();
+        for (int i = 1; i <= count; i++) {
+            ids.add(i);
         }
-        return patientIds;
+        return ids;
     }
 
     /**
-     * This is where the actual tasks get scheduled: ECG, blood levels, etc.
-     * Each type of data gets its own interval.
-     * @param patientIds the list of patient IDs to generate data for
+     * Schedules the periodic tasks that simulate health data and evaluate alerts.
      */
-    private static void scheduleTasksForPatients(List<Integer> patientIds) {
-        ECGDataGenerator ecgDataGenerator = new ECGDataGenerator(patientCount);
-        BloodSaturationDataGenerator bloodSaturationDataGenerator = new BloodSaturationDataGenerator(patientCount);
-        BloodPressureDataGenerator bloodPressureDataGenerator = new BloodPressureDataGenerator(patientCount);
-        BloodLevelsDataGenerator bloodLevelsDataGenerator = new BloodLevelsDataGenerator(patientCount);
-        AlertGenerator alertGenerator = new AlertGenerator(patientCount);
+    private void scheduleTasksForPatients(List<Integer> patientIds, DataStorage storage, AlertService alertService) {
+        ECGDataGenerator ecgGen = new ECGDataGenerator(patientCount);
+        BloodSaturationDataGenerator satGen = new BloodSaturationDataGenerator(patientCount);
+        BloodPressureDataGenerator bpGen = new BloodPressureDataGenerator(patientCount);
+        BloodLevelsDataGenerator blGen = new BloodLevelsDataGenerator(patientCount);
+        HeartRateDataGenerator hrGen = new HeartRateDataGenerator();
 
-        for (int patientId : patientIds) {
-            scheduleTask(() -> ecgDataGenerator.generate(patientId, outputStrategy), 1, TimeUnit.SECONDS);
-            scheduleTask(() -> bloodSaturationDataGenerator.generate(patientId, outputStrategy), 1, TimeUnit.SECONDS);
-            scheduleTask(() -> bloodPressureDataGenerator.generate(patientId, outputStrategy), 1, TimeUnit.MINUTES);
-            scheduleTask(() -> bloodLevelsDataGenerator.generate(patientId, outputStrategy), 2, TimeUnit.MINUTES);
-            scheduleTask(() -> alertGenerator.generate(patientId, outputStrategy), 20, TimeUnit.SECONDS);
+        for (int id : patientIds) {
+            scheduleTask(() -> ecgGen.generate(id, outputStrategy), 1, TimeUnit.SECONDS);
+            scheduleTask(() -> satGen.generate(id, outputStrategy), 1, TimeUnit.SECONDS);
+            scheduleTask(() -> bpGen.generate(id, outputStrategy), 1, TimeUnit.MINUTES);
+            scheduleTask(() -> blGen.generate(id, outputStrategy), 2, TimeUnit.MINUTES);
+            scheduleTask(() -> hrGen.generate(id, outputStrategy), 1, TimeUnit.SECONDS);
+            scheduleTask(() -> {
+                Patient p = storage.getPatient(id);
+                if (p != null) alertService.evaluate(p);
+            }, 20, TimeUnit.SECONDS);
         }
     }
 
     /**
-     * Takes a task (like generate ECG) and schedules it to run again and again.
-     * A random delay is added to spread them out a bit.
-     * @param task     the action to run (like generate ECG)
-     * @param period   how often to repeat it
-     * @param timeUnit the unit of time (e.g. seconds, minutes)
+     * Schedules a recurring task with a slight initial delay.
      */
-    private static void scheduleTask(Runnable task, long period, TimeUnit timeUnit) {
-        scheduler.scheduleAtFixedRate(task, random.nextInt(5), period, timeUnit);
+    private void scheduleTask(Runnable task, long period, TimeUnit unit) {
+        scheduler.scheduleAtFixedRate(task, random.nextInt(5), period, unit);
     }
 }
