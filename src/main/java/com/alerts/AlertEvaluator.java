@@ -1,5 +1,7 @@
 package com.alerts;
 
+import com.alerts.factories.AlertFactory;
+import com.alerts.factories.AlertFactoryProvider;
 import com.data_management.DataStorage;
 import com.data_management.Patient;
 import com.data_management.PatientRecord;
@@ -10,29 +12,35 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * This class goes through the latest patient data and triggers alerts
- * when specific medical conditions are detected based on value thresholds
- * or abnormal trends.
+ * AlertEvaluator is responsible for analyzing patient data and triggering alerts
+ * when specific medical conditions are detected (e.g. low saturation, abnormal ECG).
+ * It uses an AlertFactory to create alerts, allowing different alert types to be generated
+ * in a flexible and modular way.
  */
-public class AlertGenerator {
+public class AlertEvaluator {
 
-    /** Used to access the patient data for processing. */
-    private final DataStorage dataStorage;
+    /** Data source that holds all patient records. */
+    private final DataStorage storage;
+
+    /** Trigger used to dispatch Alert objects. */
+    private final AlertTrigger trigger;
 
     /**
-     * Creates an AlertGenerator that checks data from the given storage.
+     * Creates an AlertEvaluator with a specific data storage and alert trigger.
      *
-     * @param dataStorage the system containing patient records
+     * @param storage the source of patient records
+     * @param trigger the object used to handle triggered alerts
      */
-    public AlertGenerator(DataStorage dataStorage) {
-        this.dataStorage = dataStorage;
+    public AlertEvaluator(DataStorage storage, AlertTrigger trigger) {
+        this.storage = storage;
+        this.trigger = trigger;
     }
 
     /**
-     * Looks at a patient's records from the last 10 minutes and checks for anything
-     * unusual (high blood pressure, low oxygen, etc.).
+     * Looks at the patient's recent data (last 10 minutes) and triggers
+     * alerts if something unusual is detected.
      *
-     * @param patient the patient whose data we want to check
+     * @param patient the patient whose data should be checked
      */
     public void evaluateData(Patient patient) {
         long now = System.currentTimeMillis();
@@ -52,10 +60,6 @@ public class AlertGenerator {
         checkECG(id, ecg);
     }
 
-    /**
-     * Checks if the patient's blood pressure readings meet any critical thresholds
-     * or show a rising/falling trend.
-     */
     private void checkBloodPressure(String id, List<PatientRecord> records) {
         List<Integer> systolics = new ArrayList<>();
         List<Integer> diastolics = new ArrayList<>();
@@ -68,9 +72,9 @@ public class AlertGenerator {
                 int sys = Integer.parseInt(parts[0].trim());
                 int dia = Integer.parseInt(parts[1].trim());
 
-                // Critical thresholds
                 if (sys > 180 || sys < 90 || dia > 120 || dia < 60) {
-                    triggerAlert(new Alert(id, "Critical Blood Pressure", r.getTimestamp()));
+                    AlertFactory factory = AlertFactoryProvider.getFactory("bloodpressure");
+                    triggerAlert(factory.createAlert(id, "Critical Blood Pressure", r.getTimestamp()));
                 }
 
                 systolics.add(sys);
@@ -83,9 +87,6 @@ public class AlertGenerator {
         checkTrend(id, diastolics, "Diastolic BP");
     }
 
-    /**
-     * Triggers a trend alert if values rise or fall 3 times in a row by more than 10.
-     */
     private void checkTrend(String id, List<Integer> values, String label) {
         for (int i = 0; i <= values.size() - 3; i++) {
             int v1 = values.get(i);
@@ -95,43 +96,39 @@ public class AlertGenerator {
             boolean rising = v2 - v1 > 10 && v3 - v2 > 10;
             boolean falling = v1 - v2 > 10 && v2 - v3 > 10;
 
-            if (rising) {
-                triggerAlert(new Alert(id, "Rising " + label + " Trend", System.currentTimeMillis()));
-            } else if (falling) {
-                triggerAlert(new Alert(id, "Falling " + label + " Trend", System.currentTimeMillis()));
+            if (rising || falling) {
+                String condition = rising ? "Rising " : "Falling ";
+                AlertFactory factory = AlertFactoryProvider.getFactory("bloodpressure");
+                triggerAlert(factory.createAlert(id, condition + label + " Trend", System.currentTimeMillis()));
             }
         }
     }
 
-    /**
-     * Checks for low saturation or sudden drops.
-     */
     private void checkSaturation(String id, List<PatientRecord> records) {
         records.sort(Comparator.comparingLong(PatientRecord::getTimestamp));
+        AlertFactory factory = AlertFactoryProvider.getFactory("saturation");
 
         for (int i = 0; i < records.size(); i++) {
             double val = parsePercentage(records.get(i).getMeasurementValue());
 
             if (val < 92) {
-                triggerAlert(new Alert(id, "Low Saturation", records.get(i).getTimestamp()));
+                triggerAlert(factory.createAlert(id, "Low Saturation", records.get(i).getTimestamp()));
             }
 
             for (int j = i + 1; j < records.size(); j++) {
                 double next = parsePercentage(records.get(j).getMeasurementValue());
                 if (val - next >= 5) {
-                    triggerAlert(new Alert(id, "Rapid Saturation Drop", records.get(j).getTimestamp()));
+                    triggerAlert(factory.createAlert(id, "Rapid Saturation Drop", records.get(j).getTimestamp()));
                 }
             }
         }
     }
 
-    /**
-     * Triggers alert if systolic < 90 and SpO2 < 92 in the same 10-minute window.
-     */
     private void checkCombinedHypotensionHypoxemia(String id, List<PatientRecord> bp, List<PatientRecord> spo2) {
         for (PatientRecord b : bp) {
             String[] vals = b.getMeasurementValue().split("/");
             if (vals.length < 1) continue;
+
             try {
                 int sys = Integer.parseInt(vals[0].trim());
                 if (sys >= 90) continue;
@@ -140,7 +137,8 @@ public class AlertGenerator {
                     double sat = parsePercentage(s.getMeasurementValue());
                     if (sat < 92) {
                         long timestamp = Math.max(b.getTimestamp(), s.getTimestamp());
-                        triggerAlert(new Alert(id, "Hypotensive Hypoxemia", timestamp));
+                        AlertFactory factory = AlertFactoryProvider.getFactory("bloodpressure");
+                        triggerAlert(factory.createAlert(id, "Hypotensive Hypoxemia", timestamp));
                         return;
                     }
                 }
@@ -148,9 +146,6 @@ public class AlertGenerator {
         }
     }
 
-    /**
-     * Looks for sudden ECG peaks that are far above the average.
-     */
     private void checkECG(String id, List<PatientRecord> ecg) {
         if (ecg.size() < 5) return;
 
@@ -164,23 +159,19 @@ public class AlertGenerator {
                 }).collect(Collectors.toList());
 
         double avg = values.stream().mapToDouble(d -> d).average().orElse(0.0);
+        AlertFactory factory = AlertFactoryProvider.getFactory("ecg");
+
         for (int i = 0; i < values.size(); i++) {
             if (values.get(i) > avg * 1.3) {
-                triggerAlert(new Alert(id, "Abnormal ECG Peak", ecg.get(i).getTimestamp()));
+                triggerAlert(factory.createAlert(id, "Abnormal ECG Peak", ecg.get(i).getTimestamp()));
             }
         }
     }
 
-    /**
-     * Parses a string like "97%" to a usable number.
-     */
     private double parsePercentage(String input) {
         return Double.parseDouble(input.replace("%", "").trim());
     }
 
-    /**
-     * Picks out only the records with the given type label.
-     */
     private List<PatientRecord> filterByType(List<PatientRecord> all, String type) {
         return all.stream()
                 .filter(r -> r.getRecordType().equalsIgnoreCase(type))
@@ -188,11 +179,12 @@ public class AlertGenerator {
     }
 
     /**
-     * Placeholder for what should happen when an alert is triggered.
-     * For now, it just prints to console.
+     * Properly triggers the alert using the registered AlertTrigger.
      */
     private void triggerAlert(Alert alert) {
         System.out.println(" ALERT for Patient " + alert.getPatientId()
                 + ": " + alert.getCondition() + " at " + alert.getTimestamp());
+
+        trigger.trigger(alert);
     }
 }
