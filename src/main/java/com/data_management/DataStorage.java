@@ -18,9 +18,9 @@ public class DataStorage {
     private final Map<Integer, Patient> patientMap;
 
     /**
-     * Private constructor to ensure only one instance is created.
+     * Public constructor creates a new instance of DataStorage.
      */
-    private DataStorage() {
+    public DataStorage() {
         this.patientMap = new HashMap<>();
     }
 

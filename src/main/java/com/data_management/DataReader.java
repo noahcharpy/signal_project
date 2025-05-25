@@ -10,4 +10,12 @@ public interface DataReader {
      * @throws IOException if there is an error reading the data
      */
     void readData(DataStorage dataStorage) throws IOException;
+
+    /**
+     * Starts reading patient data from a real-time source such as a WebSocket.
+     * The implementation should continuously receive and store data in real time.
+     *
+     * @param storage the storage object where streaming data will be stored
+     */
+    void startStreaming(DataStorage storage);
 }

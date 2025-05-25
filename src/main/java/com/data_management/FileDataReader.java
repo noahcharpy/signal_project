@@ -68,4 +68,12 @@ public class FileDataReader implements DataReader {
             }
         }
     }
+
+
+    /**
+     *
+     * @param storage the storage object where streaming data will be stored
+     */
+    @Override
+    public void startStreaming(DataStorage storage) {}
 }
