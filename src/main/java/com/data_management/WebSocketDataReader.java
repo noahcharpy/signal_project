@@ -36,11 +36,29 @@ public class WebSocketDataReader implements DataReader {
             URI serverUri = new URI("ws://localhost:1234");  // Replace with your actual WebSocket server address
             client = new WebSocketClient(serverUri, storage);
             client.connect();
+
+            // Wait until the connection is actually established (max 5 seconds)
+            int attempts = 0;
+            while (!client.isConnected() && attempts < 10) {
+                Thread.sleep(500);
+                attempts++;
+            }
+
+            if (client.isConnected()) {
+                System.out.println("WebSocketDataReader connected successfully.");
+            } else {
+                System.err.println("WebSocketDataReader failed to connect within timeout.");
+            }
             System.out.println("WebSocketDataReader started streaming...");
+
         } catch (Exception e) {
             System.err.println("Failed to start WebSocket streaming: " + e.getMessage());
             e.printStackTrace();
         }
+    }
+
+    public boolean isClientOpen() {
+        return client != null && client.isOpen();
     }
 
     /**
