@@ -17,6 +17,8 @@ public class WebSocketClient extends org.java_websocket.client.WebSocketClient {
 
     private final DataStorage dataStorage;
 
+    private volatile boolean connected = false;
+
     /**
      * Constructs a WebSocketClient with the specified server URI and data storage.
      *
@@ -29,12 +31,22 @@ public class WebSocketClient extends org.java_websocket.client.WebSocketClient {
     }
 
     /**
+     * Returns whether the WebSocket connection has been successfully opened.
+     *
+     * @return true if connected; false otherwise
+     */
+    public boolean isConnected() {
+        return connected;
+    }
+
+    /**
      * Called when the WebSocket connection is successfully opened.
      *
      * @param handshakedata the handshake data provided by the server
      */
     @Override
     public void onOpen(ServerHandshake handshakedata) {
+        connected = true;
         System.out.println("Connected to WebSocket server");
     }
 
@@ -79,6 +91,7 @@ public class WebSocketClient extends org.java_websocket.client.WebSocketClient {
      */
     @Override
     public void onClose(int code, String reason, boolean remote) {
+        connected = false;
         System.out.println("WebSocket closed: " + reason);
     }
 
