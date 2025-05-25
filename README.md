@@ -67,3 +67,15 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Project Members 
 - Student ID: 6241031
 - Student ID: 6348400
+
+## UML Models for CHMS Project
+
+The diagrams and explanations can be found in the [uml_models](./uml_models) directory.
+
+Included diagrams:
+- Alert Generation System
+- Data Storage System
+- Patient Identification System
+- Data Access Layer
+
+Each diagram is accompanied by a written explanation discussing the design rationale and choices.
